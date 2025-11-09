@@ -5,17 +5,23 @@ from PIL import Image
 import io
 import base64
 import os
+import warnings
+warnings.filterwarnings('ignore')
 
 app = Flask(__name__, template_folder='.', static_folder='.')
 
-# Load model
+# Load model ONCE at startup
 print("Loading trained model...")
 try:
+    # Suppress TensorFlow warnings
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     model = keras.models.load_model('cnn_model.h5')
     print("✓ Model loaded successfully!")
+    model_ready = True
 except Exception as e:
     print(f"✗ Error loading model: {e}")
     model = None
+    model_ready = False
 
 @app.route('/')
 def index():
@@ -24,10 +30,10 @@ def index():
 
 @app.route('/api/predict', methods=['POST'])
 def predict():
-    """Predict digit from canvas image"""
+    """Predict digit from canvas image - OPTIMIZED"""
     try:
-        if model is None:
-            return jsonify({'error': 'Model not loaded'}), 500
+        if not model_ready:
+            return jsonify({'error': 'Model not ready'}), 500
         
         data = request.json
         image_data = data.get('image')
@@ -35,37 +41,37 @@ def predict():
         if not image_data:
             return jsonify({'error': 'No image data'}), 400
         
-        # Decode base64 image
+        # Decode image (FAST)
         image_data = image_data.split(',')[1]
         image_bytes = base64.b64decode(image_data)
         image = Image.open(io.BytesIO(image_bytes)).convert('L')
+        image = image.resize((28, 28), Image.Resampling.LANCZOS)
         
-        # Resize to 28x28
-        image = image.resize((28, 28))
+        # Preprocess (FAST)
+        image_array = np.array(image, dtype=np.float32) / 255.0
+        image_array = image_array.reshape(1, 28, 28, 1)
         
-        # Convert to numpy array and normalize
-        image_array = np.array(image).astype('float32') / 255.0
-        image_array = np.expand_dims(image_array, axis=0)
-        image_array = np.expand_dims(image_array, axis=-1)
+        # Predict (with timeout protection)
+        try:
+            predictions = model.predict(image_array, verbose=0)
+        except Exception as e:
+            return jsonify({'error': f'Prediction failed: {str(e)}'}), 500
         
-        # Make prediction
-        predictions = model.predict(image_array, verbose=0)
-        predicted_digit = np.argmax(predictions[0])
-        confidence = float(predictions[0][predicted_digit]) * 100
+        # Get results (FAST)
+        predicted_digit = int(np.argmax(predictions[0]))
+        confidence = float(predictions[0][predicted_digit] * 100)
         
-        # Get top 3 predictions
+        # Top 3 predictions
         top_3_indices = np.argsort(predictions[0])[-3:][::-1]
-        top_3_probs = predictions[0][top_3_indices] * 100
-        
         all_predictions = {
-            str(int(top_3_indices[i])): float(top_3_probs[i])
-            for i in range(len(top_3_indices))
+            str(int(idx)): float(predictions[0][idx] * 100)
+            for idx in top_3_indices
         }
         
         return jsonify({
             'status': 'success',
-            'digit': int(predicted_digit),
-            'confidence': float(confidence),
+            'digit': predicted_digit,
+            'confidence': round(confidence, 2),
             'all_predictions': all_predictions
         })
     
@@ -73,12 +79,13 @@ def predict():
         print(f"Error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint"""
+    return jsonify({'status': 'ok', 'model': 'loaded' if model_ready else 'failed'}), 200
+
 if __name__ == '__main__':
     print("\n" + "="*70)
-    print("🧠 CNN DIGIT RECOGNITION - APP")
+    print("🧠 CNN DIGIT RECOGNITION")
     print("="*70)
-    print("Opening at: http://localhost:5000")
-    print("="*70)
-    print("Press Ctrl+C to stop the server\n")
-    
-    app.run(debug=True, port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)
