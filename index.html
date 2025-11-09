@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 CNN Digit Recognition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196f3;
+            font-size: 13px;
+            color: #333;
+        }
+        
+        .canvas-section {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .canvas-label {
+            display: block;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        #canvas {
+            border: 3px solid #667eea;
+            border-radius: 10px;
+            background: white;
+            cursor: crosshair;
+            display: block;
+            margin: 0 auto;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            width: 280px;
+            height: 280px;
+            touch-action: none;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+        
+        button {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-predict {
+            background: #667eea;
+            color: white;
+            min-width: 120px;
+        }
+        
+        .btn-predict:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-clear {
+            background: #ff6b6b;
+            color: white;
+            min-width: 120px;
+        }
+        
+        .btn-clear:hover {
+            background: #ff5252;
+            transform: translateY(-2px);
+        }
+        
+        .result {
+            background: #f0f0f0;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+            display: none;
+        }
+        
+        .result.active {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .prediction {
+            font-size: 48px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+        }
+        
+        .confidence {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        
+        .confidence-bar {
+            width: 100%;
+            height: 25px;
+            background: #ddd;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .top-predictions {
+            margin-top: 15px;
+            text-align: left;
+        }
+        
+        .prediction-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            background: white;
+            margin: 5px 0;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 CNN Digit Recognition</h1>
+            <p>Draw a digit (0-9) and let AI predict it!</p>
+        </div>
+        
+        <div class="info">
+            <strong>ℹ️ How to use:</strong> Draw a digit on the canvas below, click "Predict", and see what the AI thinks it is!
+        </div>
+        
+        <div class="canvas-section">
+            <label class="canvas-label">Draw a digit here:</label>
+            <canvas id="canvas" width="280" height="280"></canvas>
+        </div>
+        
+        <div class="buttons">
+            <button class="btn-predict" onclick="predict()">🔮 Predict</button>
+            <button class="btn-clear" onclick="clearCanvas()">🗑️ Clear</button>
+        </div>
+        
+        <div class="loading" id="loading">⏳ Predicting...</div>
+        
+        <div class="result" id="result">
+            <div class="prediction" id="digit">0</div>
+            <div class="confidence">
+                Confidence: <span id="conf">0</span>%
+            </div>
+            <div class="confidence-bar">
+                <div class="confidence-fill" id="fill"></div>
+            </div>
+            <div class="top-predictions" id="topPredictions"></div>
+        </div>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+        
+        // Initialize canvas with white background
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, 280, 280);
+        
+        // Mouse events
+        canvas.addEventListener('mousedown', (e) => {
+            drawing = true;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            if (!drawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            ctx.lineTo(x, y);
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = 'black';
+            ctx.stroke();
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            drawing = false;
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+            drawing = false;
+        });
+        
+        // Touch events for mobile
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            drawing = true;
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (!drawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            ctx.lineTo(x, y);
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = 'black';
+            ctx.stroke();
+        });
+        
+        canvas.addEventListener('touchend', () => {
+            drawing = false;
+        });
+        
+        function clearCanvas() {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, 280, 280);
+            document.getElementById('result').classList.remove('active');
+        }
+        
+        async function predict() {
+            const image = canvas.toDataURL('image/png');
+            
+            document.getElementById('loading').classList.add('active');
+            
+            try {
+                const response = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({image: image})
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const confidence = Math.round(data.confidence);
+                    
+                    document.getElementById('digit').textContent = data.digit;
+                    document.getElementById('conf').textContent = confidence;
+                    document.getElementById('fill').style.width = confidence + '%';
+                    document.getElementById('fill').textContent = confidence + '%';
+                    
+                    // Show top predictions
+                    const topDiv = document.getElementById('topPredictions');
+                    topDiv.innerHTML = '<strong>Top Predictions:</strong><br>';
+                    for (const [digit, prob] of Object.entries(data.all_predictions)) {
+                        topDiv.innerHTML += `<div class="prediction-item"><span>Digit ${digit}</span><span>${Math.round(prob)}%</span></div>`;
+                    }
+                    
+                    document.getElementById('result').classList.add('active');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>
