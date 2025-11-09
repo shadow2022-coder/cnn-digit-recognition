@@ -6,12 +6,12 @@ import io
 import base64
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='.', static_folder='.')
 
 # Load model
 print("Loading trained model...")
 try:
-    model = keras.models.load_model('model/cnn_model.h5')
+    model = keras.models.load_model('cnn_model.h5')
     print("✓ Model loaded successfully!")
 except Exception as e:
     print(f"✗ Error loading model: {e}")
@@ -75,7 +75,7 @@ def predict():
 
 if __name__ == '__main__':
     print("\n" + "="*70)
-    print("🧠 CNN DIGIT RECOGNITION - LOCAL APP")
+    print("🧠 CNN DIGIT RECOGNITION - APP")
     print("="*70)
     print("Opening at: http://localhost:5000")
     print("="*70)
